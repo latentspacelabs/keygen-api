@@ -67,7 +67,7 @@ RUN chmod +x /app/scripts/entrypoint.sh && \
 ENV KEYGEN_EDITION="CE" \
     KEYGEN_MODE="singleplayer" \
     RAILS_LOG_TO_STDOUT="1" \
-    PORT="3000" \
+    PORT="8080" \
     BIND="0.0.0.0"
 
 USER keygen
