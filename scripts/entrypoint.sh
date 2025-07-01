@@ -49,6 +49,84 @@ run_setup_safely() {
   fi
 }
 
+# Function to kill existing worker processes
+kill_existing_workers() {
+  echo "Checking for existing worker processes..."
+  
+  # Find Sidekiq processes
+  WORKER_PIDS=$(pgrep -f "sidekiq" || true)
+  
+  if [ -n "$WORKER_PIDS" ]; then
+    echo "Found existing worker processes: $WORKER_PIDS"
+    echo "Killing existing worker processes..."
+    echo "$WORKER_PIDS" | xargs kill -TERM
+    
+    # Wait a moment for graceful shutdown
+    sleep 2
+    
+    # Force kill if still running
+    REMAINING_PIDS=$(pgrep -f "sidekiq" || true)
+    if [ -n "$REMAINING_PIDS" ]; then
+      echo "Force killing remaining worker processes: $REMAINING_PIDS"
+      echo "$REMAINING_PIDS" | xargs kill -KILL
+    fi
+    
+    echo "Worker processes killed"
+  else
+    echo "No existing worker processes found"
+  fi
+}
+
+# Function to kill existing web processes
+kill_existing_web() {
+  echo "Checking for existing web processes..."
+  
+  # Check for Rails server PID file
+  if [ -f tmp/pids/server.pid ]; then
+    SERVER_PID=$(cat tmp/pids/server.pid)
+    if kill -0 "$SERVER_PID" 2>/dev/null; then
+      echo "Found existing Rails server process: $SERVER_PID"
+      echo "Killing existing Rails server process..."
+      kill -TERM "$SERVER_PID"
+      
+      # Wait a moment for graceful shutdown
+      sleep 2
+      
+      # Force kill if still running
+      if kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo "Force killing Rails server process: $SERVER_PID"
+        kill -KILL "$SERVER_PID"
+      fi
+      
+      echo "Rails server process killed"
+    fi
+  fi
+  
+  # Also check for any Rails server processes by name
+  RAILS_PIDS=$(pgrep -f "rails server" || true)
+  
+  if [ -n "$RAILS_PIDS" ]; then
+    echo "Found additional Rails server processes: $RAILS_PIDS"
+    echo "Killing additional Rails server processes..."
+    echo "$RAILS_PIDS" | xargs kill -TERM
+    
+    # Wait a moment for graceful shutdown
+    sleep 2
+    
+    # Force kill if still running
+    REMAINING_PIDS=$(pgrep -f "rails server" || true)
+    if [ -n "$REMAINING_PIDS" ]; then
+      echo "Force killing remaining Rails server processes: $REMAINING_PIDS"
+      echo "$REMAINING_PIDS" | xargs kill -KILL
+    fi
+    
+    echo "Additional Rails server processes killed"
+  fi
+  
+  # Clean up PID file
+  rm -f tmp/pids/server.pid
+}
+
 case "$@"
 in
 setup)
@@ -60,6 +138,9 @@ release)
   exec bundle exec rails db:migrate
   ;;
 web)
+  echo "Checking for existing web processes..."
+  kill_existing_web
+  
   echo "Running command: bundle exec rails server -b $BIND -p $PORT"
   exec bundle exec rails server -b "$BIND" -p "$PORT"
   ;;
@@ -68,6 +149,9 @@ console)
   exec bundle exec rails console
   ;;
 worker)
+  echo "Checking for existing worker processes..."
+  kill_existing_workers
+  
   echo "Running command: bundle exec sidekiq"
   exec bundle exec sidekiq
   ;;
@@ -76,6 +160,10 @@ all)
   
   # Run setup safely (will skip if already done)
   run_setup_safely
+  
+  echo "Checking for existing processes..."
+  kill_existing_workers
+  kill_existing_web
   
   echo "Starting worker and web processes..."
   
