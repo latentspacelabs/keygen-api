@@ -73,4 +73,4 @@ ENV KEYGEN_EDITION="CE" \
 USER keygen
 
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
-CMD ["all"]
+CMD ["worker"]
